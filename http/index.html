@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Temperature Data Visualization</title>
+	<!-- Add Chart.js library -->
+	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+	<style>
+		body {
+			font-family: Arial, sans-serif;
+			margin: 20px;
+		}
+
+		canvas {
+			margin: 20px;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Suhu ruangan 10 menit terakhir</h1>
+	<canvas id="temperatureChart2"></canvas>
+	<h1>Suhu ruangan dalam 1 hari</h1>
+	<canvas id="temperatureChart"></canvas>
+
+	<script>
+		function downsampleData(array, amount) {
+			if (amount == 0) return array;
+			const arrayLength = array.length;
+			if (amount >= arrayLength) return array;
+			const interval = (arrayLength - 1) / (amount - 1);
+
+			return Array.from({ length: amount }, (_, index) => {
+				const position = Math.round(index * interval);
+				return array[position];
+			});
+		}
+
+		function parseURLParams(url) {
+			var queryStart = url.indexOf("?") + 1,
+				queryEnd = url.indexOf("#") + 1 || url.length + 1,
+				query = url.slice(queryStart, queryEnd - 1),
+				pairs = query.replace(/\+/g, " ").split("&"),
+				parms = {}, i, n, v, nv;
+
+			if (query === url || query === "") return;
+
+			for (i = 0; i < pairs.length; i++) {
+				nv = pairs[i].split("=", 2);
+				n = decodeURIComponent(nv[0]);
+				v = decodeURIComponent(nv[1]);
+
+				if (!parms.hasOwnProperty(n)) parms[n] = [];
+				parms[n].push(nv.length === 2 ? v : null);
+			}
+			return parms;
+		}
+
+		async function fetchData() {
+			const response = await fetch('http://localhost:5000/esp');
+			const data = await response.json();
+			return data['data'];
+		}
+
+		async function generateChart() {
+			const jsonData = await fetchData();
+
+			const threshold = 200;
+			const downsampledData = downsampleData(jsonData, threshold);
+
+			const dataLastHour = jsonData.slice(-60);
+
+			// Extract dates and temperatures for chart
+			const dates = downsampledData.map(entry => entry.Date);
+			const temperatures = downsampledData.map(entry => entry.Temp);
+			
+			const datesLastHour = dataLastHour.map(entry => entry.Date);
+			const temperaturesLastHour = dataLastHour.map(entry => entry.Temp);
+
+			// Create a line chart
+			const ctx = document.getElementById('temperatureChart').getContext('2d');
+			const temperatureChart = new Chart(ctx, {
+				type: 'line',
+				data: {
+					labels: dates,
+					datasets: [{
+						label: 'Temperature',
+						data: temperatures,
+						borderColor: 'rgba(75, 192, 192, 1)',
+						borderWidth: 2,
+						fill: false,
+						cubicInterpolationMode: 'monotone'
+					}]
+				},
+				options: {
+					scales: {
+						x: {
+							ticks: {
+								callback: function (value, index, values) {
+									return dates[index].slice(11, 16);
+								}
+							}
+
+						},
+					}
+				}
+			});
+
+			// Create a line chart
+			const ctx2 = document.getElementById('temperatureChart2').getContext('2d');
+			const temperatureChart2 = new Chart(ctx2, {
+				type: 'line',
+				data: {
+					labels: datesLastHour,
+					datasets: [{
+						label: 'Temperature',
+						data: temperaturesLastHour,
+						borderColor: 'rgba(75, 192, 192, 1)',
+						borderWidth: 2,
+						fill: false,
+						cubicInterpolationMode: 'monotone'
+					}]
+				},
+				options: {
+					scales: {
+						x: {
+							ticks: {
+								callback: function (value, index, values) {
+									return datesLastHour[index].slice(11, 16);
+								}
+							}
+
+						},
+					}
+				}
+			});
+		}
+
+		generateChart();
+	</script>
+</body>
+
+</html>
